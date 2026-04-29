@@ -75,42 +75,48 @@ When a new commit is made, it doesn't "copy" the unchanged files from the parent
 
 ---
 
-## 🧪 Lab Log: Inspecting the Internal Tree
-This is the process we followed to unmask Git's data structure in our session.
+## 🧪 Proof of Concept: Real-World Efficiency
+We compared two Trees from two real commits in this repository to prove the "Re-use" logic.
 
-### Step 1: Find your current Commit
-When you commit, Git gives you a short hash. You can inspect it to see the "Root Tree".
+### Commit 1: 4th Commit (`22579a2`)
 ```powershell
-# Command
-git cat-file -p 418a34a
-
-# Mock Output
-tree 04df07b08ca746b3167d0f1d1514e2f39a52c16c
-author abhishek <email@domain.com> 1234567890 +0530
-committer abhishek <email@domain.com> 1234567890 +0530
-
-First commit
+PS> git cat-file -p 22579a2
+tree 81c01cff359ce90c14abb57d1e0f334a8b49eba2
+parent c7f13e3ebd8d89f85d6a390db7dde1ddf0670785
+...
 ```
 
-### Step 2: Open the "Tree" (The Folder)
-The Tree tells you which filenames belong to which hashes.
+### Commit 2: 3rd Commit (`c7f13e3`)
 ```powershell
-# Command (using the tree hash from above)
-git cat-file -p 04df07b
-
-# Mock Output
-100644 blob b6fc4c620b67d95f953a5c1c1230aaab5db5a1b0    hello.txt
+PS> git cat-file -p c7f13e3
+tree 0fb2e7795900022454f451f075b2b1b18dc026dc
+parent 1a852c573425280f43c2ad25eb36f0c6ff224834
+...
 ```
 
-### Step 3: Read the "Blob" (The Content)
-The Blob is purely the content, stripped of its name.
-```powershell
-# Command (using the blob hash from the tree)
-git cat-file -p b6fc4c6
+### Comparison of the Trees:
+When we look inside these two trees, we see the following mapping:
 
-# Mock Output
-hello git world
+**Tree from 4th Commit (`81c01cf`):**
+```text
+040000 tree 770106e976788334f95e9c664a7dbdd942ea2395    .agent
+100644 blob b5af13c1f9b234314011ce2589dd5c707d905496    README_docker.md
+100644 blob ce2972ffd21e7a4dfd487e1135f17f9c0e46f8b2    README_git.md
+100644 blob aa0c2b8f7418b8315301166136213d8628d5324c    README_github.md
+...
 ```
 
-### Summary of the "Jump"
-**Commit** (Metadata) ➔ **Tree** (Directory Map) ➔ **Blob** (File Content)
+**Tree from 3rd Commit (`0fb2e77`):**
+```text
+040000 tree 770106e976788334f95e9c664a7dbdd942ea2395    .agent
+100644 blob b5af13c1f9b234314011ce2589dd5c707d905496    README_docker.md
+100644 blob fd243b0742b54cb0b03bac0bd69011217b044061    README_git.md
+100644 blob aa0c2b8f7418b8315301166136213d8628d5324c    README_github.md
+...
+```
+
+### 🎯 The Discovery:
+Even though the `README_git.md` hash changed (because we edited it), the `README_docker.md` and `README_github.md` hashes stayed **EXACTLY THE SAME**. 
+- Git only created **one new blob** for the edit. 
+- It "reused" all other blobs by simply pointing the new Tree to the existing hashes.
+- **Result:** Minimal storage impact and extreme speed.
