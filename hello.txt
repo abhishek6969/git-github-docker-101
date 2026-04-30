@@ -1,2 +1,2 @@
 hello git world
-Testing reset
+Testing merge - at branch feature-b
