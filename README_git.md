@@ -58,6 +58,17 @@ Unlike regular commits, a Merge Commit has **two or more parent pointers**.
 | **6** | Perform Merge | `git merge feature-a` | Git identifies **Common Ancestor** and combines work. |
 | **7** | Verify Internal Structure | `git cat-file -p <merge_hash>` | Confirms commit has **two parents**. |
 
+### SOP #2: Resolving Merge Conflicts
+**Goal:** Manually resolve a situation where Git cannot automatically combine changes.
+
+| Step | Action | Command | Internal Outcome |
+| :--- | :--- | :--- | :--- |
+| **1** | Trigger Conflict | `git merge branch-b` | Git identifies overlapping changes and pauses. |
+| **2** | Identify Conflict | `git status` | Files are marked as "both modified". |
+| **3** | Edit File | Open file and resolve markers | Conflict markers (`<<<<`, `====`, `>>>>`) are removed. |
+| **4** | Mark as Resolved | `git add <filename>` | Git removes the "unmerged" flag from the Index. |
+| **5** | Seal the Merge | `git commit` | Final Merge Commit is created, ending the merge state. |
+
 ---
 
 ## 🧪 Proof of Concept: Snapshot Efficiency

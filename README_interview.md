@@ -17,10 +17,10 @@
 ### Q4: What is the "Common Ancestor" and why is it important for merging?
 **Answer:** The Common Ancestor is the last commit shared by two diverged branches. Git uses it to calculate what changed on both sides, allowing it to intelligently combine the changes (Three-Way Merge).
 
-### Q5: What is the difference between `git reset` and `git revert`?
+### Q5: Textual vs. Semantic Conflicts — What's the difference?
 **Answer:** 
-- `reset` moves the branch pointer backward (deleting/hiding history). 
-- `revert` creates a new commit that applies the inverse of a previous commit (preserving history).
+- **Textual Conflict:** Git detects that the same line was changed differently on two branches and stops the merge.
+- **Semantic Conflict:** Git successfully merges the code (no line overlaps), but the code is logically broken (e.g., a function you call was renamed in another branch). Git **cannot** detect semantic conflicts; only tests/compilation can.
 
 ---
 
