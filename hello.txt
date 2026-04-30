@@ -1,2 +1,2 @@
 hello git world
-Testing merge at master
+Testing merge at master branch
