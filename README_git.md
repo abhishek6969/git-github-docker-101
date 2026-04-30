@@ -35,13 +35,13 @@ Git stores everything in `.git/objects` as one of these:
 ## 🌿 4. Branching & Merging (The DAG in Action)
 
 ### The "Y-Shape" (Divergence)
-When two branches move forward independently, they create a "Y-shape" in the history graph.
+When two branches move forward independently, they create a "Y-shape" in the history graph. This is the visual proof that your project has two different "realities" happening at the same time.
 
 ### The Three-Way Merge
-To join them, Git uses the **`ort`** strategy. It compares the two branch tips and their **Common Ancestor**.
+To join them, Git uses the **`ort`** (Ostensibly Recursive's Twin) strategy. It doesn't just look at the two branch tips; it looks for the **Common Ancestor** (the last point where they were the same). It compares the differences from that ancestor to both tips and combines them.
 
-### The Merge Commit (Multi-Parent)
-Unlike regular commits, a Merge Commit has **two or more parent pointers**.
+### The Fast-Forward Merge
+If a branch is a direct descendant of another (no divergence), Git doesn't create a merge commit. It simply "slides" the pointer forward. This happens after a successful rebase and results in a perfectly linear history.
 
 ---
 
@@ -72,30 +72,41 @@ We forced Git into a "Textual Conflict" by making conflicting changes to the *sa
 **The Result:** Git screamed `CONFLICT (content)` and paused the merge.
 
 **The Resolution:**
-1. We opened `hello.txt` and saw the markers (`<<<<`, `====`, `>>>>`).
-2. We manually edited the file to the final version and **removed the markers**.
+1. We opened `hello.txt` and saw the markers:
+   - `<<<<<<< HEAD`: Your current version.
+   - `=======`: The divider.
+   - `>>>>>>> feature-b`: The incoming version.
+2. We manually edited the file to the final version and **removed all markers**.
 3. We ran `git add hello.txt` to tell Git the "weld" was complete.
-4. We ran `git commit` to seal the merge.
+4. We ran `git commit` to seal the merge and create the multi-parent commit.
 
 ---
 
-### 📂 Phase 3: Rebasing & History Cleanup
+### 📂 Phase 3: Rebasing & History Rewriting
 **The Simulation:**
 We wanted to avoid the "messy" Y-shape and make history look like a straight line.
 1. We created a branch `rebase-test` and added a commit.
 2. We added a separate commit on `master`.
 **The Result:** A Y-shape where `rebase-test` is "behind" the latest master.
 
-**The Resolution (Part 1 - The Rebase):**
+**The Resolution (The Rebase):**
 1. On `rebase-test`, we ran `git rebase master`.
-2. **Internal Logic:** Git "popped" our feature commit, moved our branch to the tip of master, and "replayed" our commit on top.
-3. **The Proof:** The Y-shape disappeared, and our history became linear.
+2. **Internal Logic:** Git "popped" our feature commit, moved our branch pointer to the tip of master, and "replayed" our commit on top.
+3. **The Proof:** The Y-shape disappeared. The history became linear.
+4. **Crucial Discovery:** The **Hash ID changed** because the Parent pointer changed. This is why we never rebase shared/pushed history.
 
-**The Resolution (Part 2 - The Squash):**
-1. We made multiple messy "typo" commits.
-2. We ran `git rebase -i HEAD~3` (Interactive mode).
-3. In the editor, we changed `pick` to `squash` for the messy commits.
-4. **The Result:** Three messy commits were condensed into one professional commit.
+---
+
+### 📂 Phase 4: Cleaning History (The Squash)
+**The Simulation:**
+We created a "messy" history with multiple tiny commits like "typo 1", "typo 2", etc.
+1. We ran `git rebase -i HEAD~3` to enter the Interactive Editor.
+
+**The Resolution (Handling the Pitfall):**
+1. **The Error:** "cannot 'squash' without a previous commit".
+2. **The Cause:** We tried to `squash` the very first commit in the list. You can't squash into nothing!
+3. **The Fix:** We ran `git rebase --edit-todo`, ensured the first line was `pick`, and set the others to `s` (squash).
+4. **The Outcome:** Three messy commits were condensed into one professional node with a clean message.
 
 ---
 

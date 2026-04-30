@@ -24,6 +24,28 @@
 
 ---
 
+## 🚀 DevOps-Grade Git Questions
+
+### Q6: What is the "Golden Rule of Rebasing"?
+**Answer:** Never rebase a public/shared branch. Rebasing rewrites history (changes hashes), which will break the local repositories of anyone else working on that branch.
+
+### Q7: How do you find which commit introduced a bug in a history of 1,000 commits?
+**Answer:** Use **`git bisect`**. It performs a binary search through the history. You mark a "good" commit and a "bad" commit, and Git automatically checks out commits in between for you to test until the culprit is found.
+
+### Q8: What are Git Hooks and how are they used in DevOps?
+**Answer:** Hooks are scripts that Git executes automatically when specific events happen (e.g., `pre-commit`, `pre-push`). In DevOps, they are used to enforce code linting, run unit tests, or check for secrets before code ever leaves the developer's machine.
+
+### Q9: What is the difference between `git pull` and `git fetch`?
+**Answer:** 
+- `fetch` only updates your **Remote Tracking Branches** (`origin/master`). It doesn't touch your local code.
+- `pull` is `fetch` + `merge`. It downloads the data AND tries to join it with your local branch.
+- *Pro Tip:* Use `git pull --rebase` to keep a clean history.
+
+### Q10: How do you recover a branch that was accidentally deleted?
+**Answer:** Use **`git reflog`**. It keeps a log of every movement of the HEAD pointer. You can find the hash of the last commit on the deleted branch and run `git branch <name> <hash>` to bring it back from the dead.
+
+---
+
 ## 🏗️ Practical Scenarios
 
 **Scenario:** You have a diverged history and run `git merge`. Git says "Fast-Forward". What does that mean?
