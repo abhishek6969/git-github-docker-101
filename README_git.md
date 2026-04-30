@@ -30,93 +30,76 @@ Git stores everything in `.git/objects` as one of these:
 | **Tree** | Maps Filenames → Hashes | The Table of Contents / Folder structure. |
 | **Commit** | Metadata + Pointers | The library card (Author, Date, Parent, Root Tree). |
 
-### 🛠️ Content-Addressable Storage
-Git identifies data by its **SHA-1 Hash** (a 40-character fingerprint).
-- **Deterministic:** The same content ALWAYS produces the same hash.
-- **Empty File Hash:** `e69de29bb2d1d6434b8b29ae775ad8c2e48c5391`
+---
+
+## 🌿 4. Branching & Merging (The DAG in Action)
+
+### The "Y-Shape" (Divergence)
+When two branches move forward independently, they create a "Y-shape" in the history graph.
+
+### The Three-Way Merge
+To join them, Git uses the **`ort`** strategy. It compares the two branch tips and their **Common Ancestor**.
+
+### The Merge Commit (Multi-Parent)
+Unlike regular commits, a Merge Commit has **two or more parent pointers**.
 
 ---
 
-## 🔧 4. Plumbing vs. Porcelain
-- **Porcelain:** High-level, user-friendly commands (`git commit`, `git add`).
-- **Plumbing:** Low-level commands that touch the "pipes" (`git cat-file`, `git hash-object`).
+## 🛠️ 5. Standard Operating Procedures (SOPs)
+
+### SOP #1: Simulating & Merging Diverged History
+| Step | Action | Command | Internal Outcome |
+| :--- | :--- | :--- | :--- |
+| **1** | Create Feature Branch | `git checkout -b feature-a` | New pointer created at current HEAD. |
+| **2** | Work on Feature | Edit `feature-a.txt`, then `git add .` & `git commit` | New Blob and Commit created on `feature-a`. |
+| **3** | Return to Master | `git checkout master` | HEAD pointer moves back to `master`. |
+| **4** | Work on Master | Edit `master.txt`, then `git add .` & `git commit` | New Blob and Commit created on `master`. |
+| **5** | Visualize Divergence | `git log --oneline --graph --all` | Confirms the "Y-shape" graph. |
+| **6** | Perform Merge | `git merge feature-a` | Git identifies **Common Ancestor** and combines work. |
+| **7** | Verify Internal Structure | `git cat-file -p <merge_hash>` | Confirms commit has **two parents**. |
 
 ---
 
-## 🪟 5. Windows / PowerShell Survival Guide
-Because you are on Windows, use these instead of Linux commands:
-
-| Task | PowerShell Command |
-| :--- | :--- |
-| **List Objects** | `Get-ChildItem -Path .git/objects -File -Recurse` |
-| **View Object Type** | `git cat-file -t <hash>` |
-| **View Content** | `git cat-file -p <hash>` |
-| **View History** | `git log --oneline --graph --all` |
-
----
-
-## ⚡ 6. Storage Optimization
-- **Loose Objects:** Individual compressed files in `.git/objects`.
-- **Packfiles:** Highly optimized files where Git uses **Delta Compression** (storing diffs) to save space.
-- **Garbage Collection (`git gc`):** The process that turns loose objects into packfiles and deletes orphaned nodes.
-
----
-
-## 🛡️ 7. The Safety Net
-- **Reflog:** A log of every time your HEAD pointer moved. Even if you "delete" a branch, the commits are in the reflog for ~30 days.
-- **Reset vs. Revert:**
-    - **Reset:** Moves the pointer (rewrites history). Good for local cleanup.
-    - **Revert:** Adds a *new* commit that undoes a previous one. Safe for shared branches.
-
----
-
-## 📚 8. The Library Analogy (Sharing vs. Taking)
-When a new commit is made, it doesn't "copy" the unchanged files from the parent. Instead, both the Parent Tree and the New Tree point to the **same unique Blob** in the database. They share the reference.
-
----
-
-## 🧪 Proof of Concept: Real-World Efficiency
-We compared two Trees from two real commits in this repository to prove the "Re-use" logic.
-
-### Commit 1: 4th Commit (`22579a2`)
-```powershell
-PS> git cat-file -p 22579a2
-tree 81c01cff359ce90c14abb57d1e0f334a8b49eba2
-parent c7f13e3ebd8d89f85d6a390db7dde1ddf0670785
-...
-```
-
-### Commit 2: 3rd Commit (`c7f13e3`)
-```powershell
-PS> git cat-file -p c7f13e3
-tree 0fb2e7795900022454f451f075b2b1b18dc026dc
-parent 1a852c573425280f43c2ad25eb36f0c6ff224834
-...
-```
-
-### Comparison of the Trees:
-When we look inside these two trees, we see the following mapping:
+## 🧪 Proof of Concept: Snapshot Efficiency
+*From our Day 1 Session:* We compared two Trees from two real commits to prove the "Re-use" logic.
 
 **Tree from 4th Commit (`81c01cf`):**
 ```text
-040000 tree 770106e976788334f95e9c664a7dbdd942ea2395    .agent
 100644 blob b5af13c1f9b234314011ce2589dd5c707d905496    README_docker.md
 100644 blob ce2972ffd21e7a4dfd487e1135f17f9c0e46f8b2    README_git.md
-100644 blob aa0c2b8f7418b8315301166136213d8628d5324c    README_github.md
-...
 ```
 
 **Tree from 3rd Commit (`0fb2e77`):**
 ```text
-040000 tree 770106e976788334f95e9c664a7dbdd942ea2395    .agent
 100644 blob b5af13c1f9b234314011ce2589dd5c707d905496    README_docker.md
 100644 blob fd243b0742b54cb0b03bac0bd69011217b044061    README_git.md
-100644 blob aa0c2b8f7418b8315301166136213d8628d5324c    README_github.md
-...
 ```
 
 ### 🎯 The Discovery:
-Even though the `README_git.md` hash changed (because we edited it), the `README_docker.md` and `README_github.md` hashes stayed **EXACTLY THE SAME**. 
-- Git only created **one new blob** for the edit. 
-- It "reused" all other blobs by simply pointing the new Tree to the existing hashes.
-- **Result:** Minimal storage impact and extreme speed.
+Notice that `README_docker.md` has the **EXACT SAME HASH** (`b5af13...`) in both commits. Git only created **one new blob** for the edit to the git readme and reused the rest.
+
+---
+
+## 🧪 Lab Log: Inspecting the Internal Tree
+1. **Step 1:** `git cat-file -p <commit_hash>` ➔ See the **Tree** hash.
+2. **Step 2:** `git cat-file -p <tree_hash>` ➔ See the **Blob** hashes & filenames.
+3. **Step 3:** `git cat-file -p <blob_hash>` ➔ See the **Raw Content**.
+
+---
+
+## 🔧 6. Plumbing vs. Porcelain
+- **Porcelain:** High-level commands (`git commit`, `git add`).
+- **Plumbing:** Low-level commands (`git cat-file`, `git hash-object`).
+
+---
+
+## 🪟 7. Windows / PowerShell Survival Guide
+- `Get-ChildItem -Path .git/objects -File -Recurse` (List Objects)
+- `git cat-file -t <hash>` (Type)
+- `git cat-file -p <hash>` (Content)
+
+---
+
+## 🛡️ 8. The Safety Net
+- **Reflog:** Log of every HEAD movement.
+- **Reset vs. Revert:** Reset for private cleanup; Revert for shared history.

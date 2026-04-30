@@ -10,24 +10,21 @@
 1. **Working Directory:** The files you see and edit.
 2. **Index (Staging Area):** A "draft" snapshot for the next commit.
 3. **HEAD:** The snapshot of your last commit.
-*Interview Value:* Demonstrates you understand why `git add` is a separate step.
 
-### Q3: What is the difference between `git reset` and `git revert`?
+### Q3: What makes a Merge Commit special in the Git DAG?
+**Answer:** A merge commit has **at least two parents**. This allows Git to trace the history back through multiple lines of development.
+
+### Q4: What is the "Common Ancestor" and why is it important for merging?
+**Answer:** The Common Ancestor is the last commit shared by two diverged branches. Git uses it to calculate what changed on both sides, allowing it to intelligently combine the changes (Three-Way Merge).
+
+### Q5: What is the difference between `git reset` and `git revert`?
 **Answer:** 
 - `reset` moves the branch pointer backward (deleting/hiding history). 
 - `revert` creates a new commit that applies the inverse of a previous commit (preserving history).
-*Rule of Thumb:* Reset for private/local work, Revert for public/shared branches.
-
-### Q4: Why is a branch "cheap" in Git?
-**Answer:** A branch is just a 41-byte text file containing a commit hash. Creating a branch is just creating a pointer; it doesn't copy any project files.
-
-### Q5: How does Git handle storage if I change 1 character in a 1GB file?
-**Answer:** Initially, it creates a new 1GB Blob (compressed). Eventually, `git gc` packs these into a **Packfile** using **Delta Compression** to store only the difference.
 
 ---
 
 ## 🏗️ Practical Scenarios
 
-**Scenario:** You "deleted" a commit using `git reset --hard` but realized you need it back. How do you find it?
-- **Concept:** `git reflog`.
-- **Logic:** Find the hash of the "lost" commit in the reflog and `git reset` or `git branch` back to it.
+**Scenario:** You have a diverged history and run `git merge`. Git says "Fast-Forward". What does that mean?
+- **Concept:** It means the target branch hasn't moved since you branched off. Git doesn't need to create a merge commit; it just slides the pointer forward.
