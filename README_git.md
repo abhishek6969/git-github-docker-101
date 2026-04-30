@@ -45,29 +45,57 @@ Unlike regular commits, a Merge Commit has **two or more parent pointers**.
 
 ---
 
-## 🛠️ 5. Standard Operating Procedures (SOPs)
+## 🛠️ 5. Standard Operating Procedures (Walkthroughs)
 
-### SOP #1: Simulating & Merging Diverged History
-| Step | Action | Command | Internal Outcome |
-| :--- | :--- | :--- | :--- |
-| **1** | Create Feature Branch | `git checkout -b feature-a` | New pointer created at current HEAD. |
-| **2** | Work on Feature | Edit `feature-a.txt`, then `git add .` & `git commit` | New Blob and Commit created on `feature-a`. |
-| **3** | Return to Master | `git checkout master` | HEAD pointer moves back to `master`. |
-| **4** | Work on Master | Edit `master.txt`, then `git add .` & `git commit` | New Blob and Commit created on `master`. |
-| **5** | Visualize Divergence | `git log --oneline --graph --all` | Confirms the "Y-shape" graph. |
-| **6** | Perform Merge | `git merge feature-a` | Git identifies **Common Ancestor** and combines work. |
-| **7** | Verify Internal Structure | `git cat-file -p <merge_hash>` | Confirms commit has **two parents**. |
+### 📂 Phase 1: Handling Diverged History
+**The Simulation:**
+We wanted to simulate a real-world scenario where two developers work on different features at the same time.
+1. We branched off with `git checkout -b feature-a`.
+2. We added a file `feature-a.txt` and committed it.
+3. We switched back to `master` (`git checkout master`).
+4. We added a *different* file `master.txt` and committed it.
+**The Result:** A "Y-shape" divergence seen via `git log --graph --oneline --all`.
 
-### SOP #2: Resolving Merge Conflicts
-**Goal:** Manually resolve a situation where Git cannot automatically combine changes.
+**The Resolution:**
+1. We ran `git merge feature-a` while on the `master` branch.
+2. **Internal Logic:** Git identified the "Common Ancestor", combined the two files into a new "Merge Commit".
+3. **The Proof:** We ran `git cat-file -p <merge_hash>` and saw **two parent lines**, confirming the history was successfully joined.
 
-| Step | Action | Command | Internal Outcome |
-| :--- | :--- | :--- | :--- |
-| **1** | Trigger Conflict | `git merge branch-b` | Git identifies overlapping changes and pauses. |
-| **2** | Identify Conflict | `git status` | Files are marked as "both modified". |
-| **3** | Edit File | Open file and resolve markers | Conflict markers (`<<<<`, `====`, `>>>>`) are removed. |
-| **4** | Mark as Resolved | `git add <filename>` | Git removes the "unmerged" flag from the Index. |
-| **5** | Seal the Merge | `git commit` | Final Merge Commit is created, ending the merge state. |
+---
+
+### 📂 Phase 2: Resolving Merge Conflicts
+**The Simulation:**
+We forced Git into a "Textual Conflict" by making conflicting changes to the *same line* of the *same file*.
+1. On `master`, we edited line 1 of `hello.txt` and committed.
+2. On `feature-b`, we edited the *exact same* line 1 of `hello.txt` and committed.
+3. We tried to merge: `git merge feature-b`.
+**The Result:** Git screamed `CONFLICT (content)` and paused the merge.
+
+**The Resolution:**
+1. We opened `hello.txt` and saw the markers (`<<<<`, `====`, `>>>>`).
+2. We manually edited the file to the final version and **removed the markers**.
+3. We ran `git add hello.txt` to tell Git the "weld" was complete.
+4. We ran `git commit` to seal the merge.
+
+---
+
+### 📂 Phase 3: Rebasing & History Cleanup
+**The Simulation:**
+We wanted to avoid the "messy" Y-shape and make history look like a straight line.
+1. We created a branch `rebase-test` and added a commit.
+2. We added a separate commit on `master`.
+**The Result:** A Y-shape where `rebase-test` is "behind" the latest master.
+
+**The Resolution (Part 1 - The Rebase):**
+1. On `rebase-test`, we ran `git rebase master`.
+2. **Internal Logic:** Git "popped" our feature commit, moved our branch to the tip of master, and "replayed" our commit on top.
+3. **The Proof:** The Y-shape disappeared, and our history became linear.
+
+**The Resolution (Part 2 - The Squash):**
+1. We made multiple messy "typo" commits.
+2. We ran `git rebase -i HEAD~3` (Interactive mode).
+3. In the editor, we changed `pick` to `squash` for the messy commits.
+4. **The Result:** Three messy commits were condensed into one professional commit.
 
 ---
 
@@ -88,13 +116,6 @@ Unlike regular commits, a Merge Commit has **two or more parent pointers**.
 
 ### 🎯 The Discovery:
 Notice that `README_docker.md` has the **EXACT SAME HASH** (`b5af13...`) in both commits. Git only created **one new blob** for the edit to the git readme and reused the rest.
-
----
-
-## 🧪 Lab Log: Inspecting the Internal Tree
-1. **Step 1:** `git cat-file -p <commit_hash>` ➔ See the **Tree** hash.
-2. **Step 2:** `git cat-file -p <tree_hash>` ➔ See the **Blob** hashes & filenames.
-3. **Step 3:** `git cat-file -p <blob_hash>` ➔ See the **Raw Content**.
 
 ---
 
