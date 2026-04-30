@@ -110,6 +110,23 @@ We created a "messy" history with multiple tiny commits like "typo 1", "typo 2",
 
 ---
 
+### 📂 SOP #5: Syncing with a Remote (The Pro Workflow)
+**The Scenario:**
+You are working on a feature branch. In the meantime, your team has merged 5 new PRs into `master` on GitHub. Your branch is now "out of date."
+
+**The Simulation:**
+1. **Fetch the Truth:** Run `git fetch origin`.
+   - **Internal Outcome:** Your local `origin/master` pointer moves to the latest commit on the server. Your code is NOT touched yet.
+2. **Re-plant your Work:** Run `git rebase origin/master`.
+   - **Internal Outcome:** Git lifts your feature commits and places them on top of the new server commits.
+   - **Alternative:** `git pull --rebase origin master`.
+
+**The Conceptual Nuance:**
+- **Why Fetch + Rebase?** If you use `git pull` (merge), you get a messy "Merge Commit" every time you sync. If you sync 10 times, your history becomes a "Train Wreck."
+- **Linearity:** Rebasing ensures that when you finally open your Pull Request, your changes look like they were written *after* the latest master code, making it much easier to review.
+
+---
+
 ## 🧪 Proof of Concept: Snapshot Efficiency
 *From our Day 1 Session:* We compared two Trees from two real commits to prove the "Re-use" logic.
 
