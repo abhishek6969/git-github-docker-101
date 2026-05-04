@@ -11,9 +11,19 @@ RUN go build -o hello hello.go
 # --- STAGE 2: The Production Image (~5MB) ---
 FROM alpine:latest
 
-WORKDIR /root/
+WORKDIR /app
 
 # We ONLY take the compiled binary. We leave the Go compiler behind!
 COPY --from=builder /app/hello .
 
-CMD ["./hello"]
+# Create a non-privileged user
+RUN adduser -D myuser
+
+# Change ownership of the app directory
+RUN chown -R myuser:myuser /app
+
+# Switch to the new user
+USER myuser
+
+
+CMD ["sh", "-c", "./hello && sleep 10000"]
