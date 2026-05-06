@@ -435,10 +435,18 @@ git worktree add ../hotfix-branch hotfix/login-bug
 - **Prevent force pushes**
 
 ### Q69: What is `git archive` and when is it used?
-**Answer:** Creates a **zip/tar archive** of a repository at a specific commit or tag — without including the `.git` directory. Useful for distributing source code releases.
+**Answer:** Creates a **zip/tar archive** of a repository at a specific commit or tag — without including the `.git` directory. Useful for distributing source code releases or packaging for deployment.
 ```bash
+# Basic archive of HEAD
 git archive --format=zip HEAD > release.zip
+
+# Archive a specific branch with a folder prefix
+git archive master --prefix='project/' --format=zip > project.zip
+
+# Archive a specific tag
+git archive --format=tar.gz v1.0 > v1.0.tar.gz
 ```
+> The `--prefix` flag adds a top-level folder name inside the archive — clean for release packages.
 
 ### Q70: What is the difference between `origin` and `upstream` in a fork workflow?
 **Answer:**
@@ -508,3 +516,396 @@ git clean -fd                     # Remove untracked files/dirs
 git gc                            # Garbage collect loose objects
 git remote prune origin           # Remove stale remote branches
 ```
+
+---
+
+## 🧠 Expert-Level Git Questions
+
+### Q71: What is `git bundle` and when would you use it?
+**Answer:** `git bundle` packages everything that would normally be transferred over a network into a **single binary file**. Primary use case is sharing repository data **completely offline** — air-gapped environments, server outages, or USB transfers.
+```bash
+# Create a bundle of the full repo
+git bundle create repo.bundle HEAD master
+
+# Recipient can clone directly from the bundle file
+git clone repo.bundle my-project
+
+# Or fetch from it into an existing repo
+git fetch repo.bundle master
+```
+
+### Q72: What is `git rerere` and how does it assist in conflict resolution?
+**Answer:** `rerere` stands for **"Reuse Recorded Resolution"**. When enabled, Git caches how you manually resolved a specific merge conflict. If the exact same conflict appears again, Git automatically applies your previous fix.
+```bash
+# Enable rerere globally
+git config --global rerere.enabled true
+```
+> Most useful when **repeatedly rebasing** a long-lived feature branch where the same conflicts keep arising.
+
+### Q73: How does `git replace` work, and how does it differ from rewriting history?
+**Answer:** `git replace` lets you tell Git to **virtually substitute** one object for another — without actually altering commit hashes in the real history. Unlike `git rebase` or `filter-repo` which rewrite every downstream hash, `git replace` grafts changes virtually and only applies locally.
+> Common use: Splitting a huge repository into short history (for new devs) and long history (for data mining), then connecting them seamlessly with `git replace`.
+
+### Q74: What is `git filter-branch`, and what is its modern replacement?
+**Answer:** `git filter-branch` was the "nuclear option" for rewriting history across a large number of commits — changing author emails, scrubbing passwords, or splitting subdirectories.
+> ⚠️ **DEPRECATED since Git 2.24 (2019).** Use **`git-filter-repo`** instead — it is faster, safer, and the officially recommended replacement.
+```bash
+# Modern way: install git-filter-repo, then
+git filter-repo --path src/ --to-subdirectory-filter lib/
+git filter-repo --commit-callback 'commit.author_email = b"correct@email.com"'
+```
+
+### Q75: Why might it be better to create an additional commit rather than using `git commit --amend`?
+**Answer:** Avoid `--amend` if the commit has **already been pushed** to a shared branch. Amending rewrites the commit and generates a new SHA hash. If others have based their work on the original commit, replacing it breaks their local history. Also, abusing `--amend` can make a single commit grow too large with unrelated changes.
+
+### Q76: What is the purpose of `git describe`?
+**Answer:** `git describe` generates a **human-readable build identifier** based on the most recent tag. Output format: `<tag>-<commits-since-tag>-g<short-hash>`
+```bash
+git describe
+# Output: v1.6.2-rc1-20-g8c5b85c
+# Means: tag v1.6.2-rc1, 20 commits ahead, short hash 8c5b85c
+```
+> Widely used in **build pipelines** to generate unique, traceable release numbers.
+
+### Q77: What is `git blame` and how do you use it?
+**Answer:** `git blame` annotates every line of a file with the **commit and author** that last modified it. Use it to track down when and why a specific bug was introduced.
+```bash
+git blame src/main.py
+
+# Track code movement (even if copy-pasted from another file)
+git blame -C src/main.py
+```
+> The `-C` flag detects code that was **copied/moved** from other files — invaluable for tracking refactored code.
+
+### Q78: How does `git shortlog` differ from `git log`?
+**Answer:** While `git log` lists every commit chronologically, `git shortlog` **groups commits by author** — perfect for generating release changelogs or contribution summaries.
+```bash
+git shortlog -sn          # Summary with commit count, sorted by number
+git shortlog v1.0..HEAD   # All commits since v1.0
+```
+
+### Q79: What roles do `git gc`, `git prune`, and `git fsck` play?
+**Answer:**
+- **`git gc` (Garbage Collection):** Compresses loose objects into efficient **packfiles**, removes unreachable objects, and reduces disk usage. Runs automatically but can be triggered manually.
+- **`git fsck` (File System Check):** Deep integrity check — identifies **corrupted or missing objects** in the database.
+- **`git prune`:** Permanently deletes **orphaned objects** no longer reachable from any branch or tag.
+```bash
+git gc --aggressive    # Deep compression (slow but thorough)
+git fsck --unreachable # Find all unreachable objects
+git prune --dry-run    # Preview what would be deleted
+```
+
+### Q80: What is a Git Packfile and how does it save space?
+**Answer:** By default, Git stores every version of every file as a separate **loose object**. Periodically, Git creates a **Packfile** — a single binary file that groups similar objects and stores only the **deltas (differences)** between versions, drastically compressing repository size.
+> `git gc` triggers packfile creation. You can see packfiles in `.git/objects/pack/`.
+
+### Q81: Deep dive — What is the technical difference between lightweight and annotated tags?
+**Answer:**
+- **Lightweight tag:** Just a simple pointer (reference file) to a specific commit. No extra object is created in the database. Like a branch that never moves.
+- **Annotated tag:** A **full object** stored in the Git database — checksummed, contains tagger name, email, date, message, and can be **GPG-signed**. Git creates a separate tag object; the reference points to the tag object, not the commit directly.
+```bash
+# Lightweight
+git tag v1.0-lw
+
+# Annotated (preferred for releases)
+git tag -a v1.0 -m "Release 1.0"
+```
+
+### Q82: How do you digitally sign commits and tags using GPG?
+**Answer:** Git supports **cryptographic signing** using GPG to prove authenticity.
+```bash
+# Configure your GPG key
+git config --global user.signingkey <gpg-key-id>
+
+# Sign a tag
+git tag -s v1.5 -m "Signed release"
+
+# Verify the signature
+git tag -v v1.5
+
+# Sign a commit
+git commit -S -m "Signed commit"
+```
+> GitHub displays a **"Verified" badge** on GPG-signed commits and tags.
+
+### Q83: What is the `.gitattributes` file and what are "smudge" and "clean" filters?
+**Answer:** `.gitattributes` assigns specific settings to file paths or types. **Smudge and Clean filters** run custom scripts on files as they move in/out of the repo.
+- **Clean filter:** Runs when a file is **staged** (entering the repo) — e.g., strip whitespace or format code before committing.
+- **Smudge filter:** Runs when a file is **checked out** (leaving the repo) — e.g., inject build timestamps or decrypt secrets.
+> Git LFS uses exactly this mechanism internally — storing pointers in the repo and fetching the real binary via a smudge filter.
+
+### Q84: How do you exclude specific files when exporting with `git archive`?
+**Answer:** Add the `export-ignore` attribute in `.gitattributes`:
+```
+# .gitattributes
+test/ export-ignore
+.github/ export-ignore
+*.md export-ignore
+```
+When you run `git archive`, Git bundles the project but **completely skips** those paths.
+
+### Q85: How do you resolve a merge conflict by entirely favoring one side?
+**Answer:** Pass a strategy option to the merge command:
+```bash
+# Keep YOUR branch's conflicting changes
+git merge -Xours feature/branch
+
+# Keep the INCOMING branch's conflicting changes
+git merge -Xtheirs feature/branch
+```
+> Note: This only applies to the **conflicted lines** — non-conflicting changes from both sides are still merged normally.
+
+### Q86: What is the difference between `-s ours` and `-Xours`?
+**Answer:**
+- **`-Xours`:** A **recursive strategy option** — attempts a real merge but resolves conflicts by picking your side.
+- **`-s ours`:** A **drastic merge strategy** — creates a fake merge commit recording both parents but **completely ignores the incoming branch's files** (pulls in nothing). Used to trick Git into thinking an abandoned branch is merged so it won't conflict in future integrations.
+
+### Q87: How do you interactively stage only parts of a modified file?
+**Answer:** Instead of `git add <file>` (stages everything), use:
+```bash
+git add -p   # patch mode — breaks file into hunks, stage selectively
+git add -i   # full interactive mode
+```
+For each hunk Git shows, respond:
+- `y` — stage this hunk
+- `n` — skip this hunk
+- `s` — split into smaller hunks
+- `e` — manually edit the hunk
+> This allows you to make one commit with a bug fix and another with a refactor, **even if they're in the same file**.
+
+### Q88: What is the difference between client-side and server-side Git hooks?
+**Answer:**
+- **Client-side hooks:** Run on the developer's local machine. Examples: `pre-commit` (run linters), `commit-msg` (enforce message format), `pre-push` (run tests before push).
+- **Server-side hooks:** Run on the remote server when code is received. Examples:
+  - **`pre-receive`:** Evaluates the entire push — can reject it if checks fail (e.g., security scan).
+  - **`update`:** Similar to `pre-receive` but runs **per-branch** — can reject pushes to specific branches.
+  - **`post-receive`:** Runs after a successful push — used to trigger CI/CD pipelines or notifications.
+
+### Q89: How do you use Git as a client for an SVN server?
+**Answer:** Via the `git svn` bridge:
+```bash
+# Clone an SVN repository
+git svn clone https://svn-server/repo
+
+# Work normally with Git commits locally
+git commit -m "My changes"
+
+# Push back to SVN (instead of git push)
+git svn dcommit
+
+# Pull latest SVN changes
+git svn rebase
+```
+> `git svn dcommit` translates your local Git commits into native SVN commits on the server.
+
+### Q90: What is the difference between "Dumb" and "Smart" HTTP protocols in Git?
+**Answer:**
+- **Dumb Protocol (plain HTTP):** No special Git service on the server — client downloads static object files directly (e.g., `info/refs`). Read-only and inefficient.
+- **Smart Protocol (HTTPS/SSH):** Requires a Git process on the server. Client and server **negotiate exactly what data is needed**, allowing the server to generate compressed custom packfiles. Supports both upload and download. All modern Git hosting (GitHub, GitLab) uses the smart protocol.
+
+### Q91: What is `git cat-file` and how is it used?
+**Answer:** A low-level **"plumbing" command** — a Swiss army knife for inspecting raw Git objects directly from the database.
+```bash
+# Check the type of an object
+git cat-file -t <hash>
+# Output: blob / tree / commit / tag
+
+# Pretty-print the contents
+git cat-file -p <hash>
+# For a commit: shows tree, parent, author, message
+# For a blob: shows raw file content
+```
+> Essential for understanding Git internals. In interviews, knowing plumbing vs. porcelain commands signals deep expertise.
+
+### Q92: How do you create Git command aliases?
+**Answer:** Use `git config` to create shortcuts:
+```bash
+# Make 'git unstage' do 'git reset HEAD --'
+git config --global alias.unstage 'reset HEAD --'
+
+# Make 'git last' show the last commit
+git config --global alias.last 'log -1 HEAD'
+
+# Alias an external shell command with !
+git config --global alias.tree '!git log --oneline --graph --all --decorate'
+```
+Aliases are stored in `~/.gitconfig` under `[alias]`.
+
+### Q93: During a conflict, how do you extract the 3 versions of a conflicting file?
+**Answer:** Git stores all three conflicting versions in the **staging area (index)** under different stage numbers:
+- **Stage 1:** Common base (ancestor)
+- **Stage 2:** Ours (current branch)
+- **Stage 3:** Theirs (incoming branch)
+```bash
+git show :1:file.txt > file.common.txt   # Base version
+git show :2:file.txt > file.ours.txt     # Your version
+git show :3:file.txt > file.theirs.txt   # Incoming version
+```
+> This is the foundation of how tools like `vimdiff` and VS Code's merge editor display 3-way diffs.
+
+---
+
+## ⚙️ Configuration, Workflow & Advanced Operations
+
+### Q94: How do you configure your username and email in Git, and why is this important?
+**Answer:** Git attaches your identity to every commit so teams know who made each change. This is mandatory before making any commits.
+```bash
+# Set globally (applies to all repositories on your machine)
+git config --global user.name "Your Name"
+git config --global user.email "your.email@example.com"
+
+# Set per-repository (overrides global, useful for work vs. personal projects)
+git config user.name "Work Name"
+git config user.email "work@company.com"
+
+# Set your default editor for commit messages
+git config --global core.editor "code --wait"   # VS Code
+git config --global core.editor "vim"           # Vim
+
+# View all config
+git config --list
+```
+
+### Q95: What is `git restore` and how does it differ from `git reset`?
+**Answer:** `git restore` is a **newer, safer command** (introduced in Git 2.23) specifically designed for undoing file-level changes without touching commit history.
+```bash
+# Unstage a file (replaces: git reset HEAD <file>)
+git restore --staged <file>
+
+# Discard local changes in working directory (replaces: git checkout -- <file>)
+git restore <file>
+
+# Restore a file to a specific commit's state
+git restore --source=HEAD~2 <file>
+```
+> **Key difference:** `git reset` moves the **branch pointer** (affects commit history). `git restore` only touches the **staging area or working directory** — it cannot alter history.
+
+### Q96: What do the status flags in `git status -s` mean?
+**Answer:** `git status -s` gives a compact two-column output. **Left column = Staging Area, Right column = Working Directory.**
+
+| Flag | Meaning |
+| --- | --- |
+| `??` | Untracked (new) file |
+| `A` | File added to staging area |
+| `M` | Modified — left=staged, right=unstaged |
+| `MM` | Modified, staged, then modified again |
+| `D` | Deleted file |
+| `R` | Renamed file |
+
+### Q97: How do you perform advanced commit filtering with `git log`?
+**Answer:** `git log` has powerful flags to search history precisely:
+```bash
+# Filter by author
+git log --author="Abhishek"
+
+# Filter by time range
+git log --since="2024-01-01" --before="2024-06-01"
+
+# Hide merge commits
+git log --no-merges
+
+# "Pickaxe" — find commits that added or removed a specific string
+git log -S "DATABASE_URL"
+
+# Combine filters
+git log --author="Abhishek" --since="1 month ago" --no-merges --oneline
+```
+> The **`-S` "Pickaxe"** option is a favourite in senior interviews — it finds exactly when a function or variable was introduced or removed.
+
+### Q98: What is the difference between `A..B` and `A...B` in `git log`?
+**Answer:**
+- **Double-dot `A..B`:** Shows commits reachable from `B` but **not** from `A`. (What's in B that A doesn't have.)
+- **Triple-dot `A...B`:** Shows commits reachable from **either** A or B, but **not both** (excludes shared history).
+```bash
+git log master..experiment    # Commits in experiment not yet in master
+git log master...experiment   # All diverged commits on both sides
+```
+
+### Q99: How does Git handle SHA-1 collision attacks?
+**Answer:** SHA-1 is a 160-bit hash. While accidental collision probability is astronomically low (~1.2 × 10²⁴ attempts), Git has two defences against **intentional** collision attacks (like the "Shattered" attack):
+1. **Object reuse:** If a crafted object hashes to the same SHA-1 as an existing one, Git finds the existing object and ignores the new one — the attack fails silently.
+2. **SHA-256 migration:** Git has been transitioning to SHA-256 (since Git 2.29) for stronger collision resistance as a long-term fix.
+> Mentioning the "Shattered" attack and SHA-256 transition in an interview signals you follow Git security developments.
+
+### Q100: At the commit level, what is the core difference between `git checkout` and `git reset`?
+**Answer:** Both manipulate Git's Three Trees (HEAD, Index, Working Directory) but in different ways:
+- **`git checkout <branch>`:** Moves the **HEAD pointer** to a different branch. It is **working-directory safe** — it checks for unsaved edits and refuses to overwrite them.
+- **`git reset <commit>`:** Moves the **branch reference itself** backward. With `--hard` it is **not safe** — it will aggressively overwrite uncommitted changes without warning.
+
+### Q101: How do you force Git to always create a merge commit even on fast-forward merges?
+**Answer:**
+```bash
+git merge --no-ff feature/login
+```
+By default, when a fast-forward is possible, Git just moves the pointer (no merge commit). `--no-ff` forces a real merge commit, preserving the visual record that a feature branch existed.
+> Common in GitFlow — all feature merges into `develop` use `--no-ff` for traceability.
+
+### Q102: What are the advanced stash flags `--keep-index`, `-u`, and `--patch`?
+**Answer:** Default `git stash` only saves **tracked, modified** files.
+```bash
+# Stash but KEEP staged files in the index (test your staged commit first)
+git stash --keep-index
+
+# Also stash UNTRACKED files (brand new files not yet git add'd)
+git stash -u
+# or
+git stash --include-untracked
+
+# Interactively pick which hunks to stash
+git stash --patch
+```
+
+### Q103: What is the difference between `git diff A..B` and `git diff A...B`?
+**Answer:**
+- **`git diff master..contrib`** (double-dot): Compares the tip of `master` directly with the tip of `contrib`. Can be misleading if `master` has moved forward — it looks like `contrib` is "removing" `master`'s new code.
+- **`git diff master...contrib`** (triple-dot): Compares `contrib` against the **common ancestor** it shares with `master` — shows only the **new work** introduced on the topic branch. This is almost always what you want.
+
+### Q104: How do you push a repository with Git Submodules safely?
+**Answer:**
+```bash
+# Fail the push if any submodule commits haven't been published yet
+git push --recurse-submodules=check
+
+# Automatically push all submodules first, then push the main project
+git push --recurse-submodules=on-demand
+```
+> Without this, you can push a main project referencing a submodule commit that doesn't exist on the remote — breaking everyone who clones the repo.
+
+### Q105: What are essential Git environment variables?
+**Answer:** Git uses environment variables for overriding internal paths and commit metadata — critical for CI/CD scripting:
+```bash
+GIT_DIR              # Override location of the .git folder
+GIT_WORK_TREE        # Set root of the working directory (for non-bare repos)
+GIT_AUTHOR_NAME      # Override author name for a specific commit
+GIT_AUTHOR_EMAIL     # Override author email for a specific commit
+GIT_COMMITTER_NAME   # Override committer name (can differ from author)
+GIT_COMMITTER_DATE   # Override committer timestamp
+GIT_SSH              # Override the SSH command Git uses
+```
+> These are heavily used in **CI/CD pipelines** to set bot/automation identities without modifying `~/.gitconfig`.
+
+### Q106: Can Git be used as a client for Mercurial repositories?
+**Answer:** Yes, via **`git-remote-hg`** — a remote helper that maps Mercurial bookmarks and branches to Git refs, allowing standard Git commands to interact with Mercurial servers.
+```bash
+# Clone a Mercurial repo using Git
+git clone hg::https://hg.example.com/repo
+
+# Push back to Mercurial
+git push
+```
+> For **SVN**, see Q89 (`git svn`). For Mercurial, `git-remote-hg` is the bridge.
+
+### Q107: How do you fetch all GitHub Pull Requests locally for testing?
+**Answer:** Edit `.git/config` under `[remote "origin"]` and add a custom refspec:
+```ini
+[remote "origin"]
+    url = https://github.com/user/repo.git
+    fetch = +refs/heads/*:refs/remotes/origin/*
+    fetch = +refs/pull/*/head:refs/remotes/origin/pr/*
+```
+Then run:
+```bash
+git fetch origin
+git checkout origin/pr/42   # Test PR #42 locally
+```
+> This downloads every active PR as a **read-only tracking branch** — essential for reviewing PRs without using the GitHub UI.
