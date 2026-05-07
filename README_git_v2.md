@@ -275,20 +275,25 @@ git status   # "nothing to commit"
 
 ### 🔬 SOP 3.1 — Simulate a Y-shape divergence
 
-```bash
-# Setup
-git init merge-lab && cd merge-lab
-echo "base" > base.txt && git add . && git commit -m "Base commit"
+```powershell
+# Setup  (Unix: git init merge-lab && cd merge-lab)
+git init merge-lab
+cd merge-lab
+"base" > base.txt           # Unix: echo "base" > base.txt
+git add .
+git commit -m "Base commit"
 
 # Branch off
 git checkout -b feature-a
-echo "feature A work" > feature-a.txt
-git add . && git commit -m "Feature A commit"
+"feature A work" > feature-a.txt
+git add .
+git commit -m "Feature A commit"
 
-# Back to master, add a conflicting commit
+# Back to master, add a commit there too
 git checkout master
-echo "master work" > master.txt
-git add . && git commit -m "Master commit"
+"master work" > master.txt
+git add .
+git commit -m "Master commit"
 
 # Visualize the Y-shape
 git log --oneline --graph --all
@@ -324,20 +329,25 @@ git log --oneline --graph --all
 
 ### 🔬 SOP 3.3 — Force a Conflict and Resolve it
 
-```bash
-git init conflict-lab && cd conflict-lab
-echo "line 1: original" > story.txt
-git add . && git commit -m "Initial story"
+```powershell
+# Unix: git init conflict-lab && cd conflict-lab
+git init conflict-lab
+cd conflict-lab
+"line 1: original" > story.txt
+git add .
+git commit -m "Initial story"
 
 # Branch A edits line 1
 git checkout -b branch-a
-echo "line 1: Branch A version" > story.txt
-git add . && git commit -m "Branch A edit"
+"line 1: Branch A version" > story.txt
+git add .
+git commit -m "Branch A edit"
 
 # Master also edits line 1
 git checkout master
-echo "line 1: Master version" > story.txt
-git add . && git commit -m "Master edit"
+"line 1: Master version" > story.txt
+git add .
+git commit -m "Master edit"
 
 # Trigger the conflict
 git merge branch-a
@@ -355,14 +365,10 @@ line 1: Branch A version
 ```
 
 **Resolution:**
-```bash
-# Edit story.txt to the final desired version, remove ALL markers
-echo "line 1: Final merged version" > story.txt
-
-# Tell Git the conflict is resolved
+```powershell
+# Edit story.txt manually to the final version, remove ALL markers
+# Then run:
 git add story.txt
-
-# Seal the merge
 git commit
 ```
 
@@ -370,18 +376,24 @@ git commit
 
 ### 🔬 SOP 3.4 — Rebase (Linear History)
 
-```bash
-git init rebase-lab && cd rebase-lab
-echo "base" > base.txt && git add . && git commit -m "Base"
+```powershell
+# Unix: git init rebase-lab && cd rebase-lab
+git init rebase-lab
+cd rebase-lab
+"base" > base.txt
+git add .
+git commit -m "Base"
 
 git checkout -b feature
-echo "feature work" > feature.txt
-git add . && git commit -m "Feature commit"
+"feature work" > feature.txt
+git add .
+git commit -m "Feature commit"
 
 # Add a new commit to master
 git checkout master
-echo "hotfix" > hotfix.txt
-git add . && git commit -m "Hotfix on master"
+"hotfix" > hotfix.txt
+git add .
+git commit -m "Hotfix on master"
 
 # Before rebase — Y-shape
 git log --oneline --graph --all
@@ -393,7 +405,7 @@ git rebase master
 # After rebase — linear
 git log --oneline --graph --all
 
-# Proof: the hash of "Feature commit" CHANGED
+# Proof: the hash of "Feature commit" CHANGED (note the different hash vs before)
 ```
 
 > **The Golden Rule:** After rebase, the Feature commit has a **new hash** because its parent changed. This is why you NEVER rebase a branch that others have already pulled.
@@ -404,33 +416,35 @@ git log --oneline --graph --all
 
 ### The Reset Modes Compared
 
-```bash
-# Setup: make 3 commits
-git init undo-lab && cd undo-lab
-echo "v1" > file.txt && git add . && git commit -m "Commit 1"
-echo "v2" > file.txt && git add . && git commit -m "Commit 2"
-echo "v3" > file.txt && git add . && git commit -m "Commit 3"
+```powershell
+# Setup: make 3 commits  (Unix: git init undo-lab && cd undo-lab)
+git init undo-lab
+cd undo-lab
+"v1" > file.txt; git add .; git commit -m "Commit 1"
+"v2" > file.txt; git add .; git commit -m "Commit 2"
+"v3" > file.txt; git add .; git commit -m "Commit 3"
 git log --oneline
 ```
 
 #### `--soft`: Undo commit, keep changes staged
-```bash
+```powershell
 git reset --soft HEAD~1
-git status   # "Changes to be committed" — v3 is staged, commit gone
-git log --oneline   # Only 2 commits
+git status           # "Changes to be committed" — v3 is staged, commit gone
+git log --oneline    # Only 2 commits remain
 ```
 
 #### `--mixed` (default): Undo commit, unstage changes
-```bash
+```powershell
 git reset HEAD~1
-git status   # "Changes not staged" — v2 is in working dir, unstaged
+git status           # "Changes not staged" — v2 is in working dir, unstaged
 ```
 
 #### `--hard`: Obliterate everything
-```bash
+```powershell
 git reset --hard HEAD~1
-git status   # Clean
-cat file.txt   # Shows v1 — v2 and v3 are GONE from working dir
+git status                       # Clean working directory
+Get-Content file.txt             # Shows v1 — v2 and v3 are GONE
+                                 # Unix: cat file.txt
 ```
 
 > **Recovery:** Even after `--hard`, commits still exist in `git reflog` for ~30 days.
@@ -458,13 +472,15 @@ git log --oneline   # 3 original commits + 1 revert commit
 
 ### 🔬 SOP 5.1 — Squash messy commits
 
-```bash
-# Create messy history
-git init squash-lab && cd squash-lab
-echo "feature" > feature.txt && git add . && git commit -m "Add feature"
-echo "fix1" >> feature.txt && git add . && git commit -m "typo fix 1"
-echo "fix2" >> feature.txt && git add . && git commit -m "typo fix 2"
-echo "fix3" >> feature.txt && git add . && git commit -m "typo fix 3"
+```powershell
+# Create messy history  (Unix: git init squash-lab && cd squash-lab)
+git init squash-lab
+cd squash-lab
+"feature" > feature.txt; git add .; git commit -m "Add feature"
+Add-Content feature.txt "fix1"; git add .; git commit -m "typo fix 1"
+Add-Content feature.txt "fix2"; git add .; git commit -m "typo fix 2"
+Add-Content feature.txt "fix3"; git add .; git commit -m "typo fix 3"
+# Unix equivalent for append: echo "fix1" >> feature.txt
 
 git log --oneline
 # abc123 typo fix 3
@@ -535,22 +551,32 @@ git pull --rebase origin master
 
 ### 🔬 SOP 6.1 — Simulate remote sync workflow
 
-```bash
+```powershell
 # Setup: two "clones" of the same repo
-git init remote-origin && cd remote-origin
-echo "v1" > shared.txt && git add . && git commit -m "Initial"
+# Unix: git init remote-origin && cd remote-origin
+git init remote-origin
+cd remote-origin
+"v1" > shared.txt
+git add .
+git commit -m "Initial"
 cd ..
 
-git clone remote-origin dev1 && cd dev1
+# Unix: git clone remote-origin dev1 && cd dev1
+git clone remote-origin dev1
+cd dev1
 
 # Simulate teammate pushing to origin
 cd ../remote-origin
-echo "teammate work" >> shared.txt && git add . && git commit -m "Teammate commit"
+Add-Content shared.txt "teammate work"   # Unix: echo "teammate work" >> shared.txt
+git add .
+git commit -m "Teammate commit"
 cd ../dev1
 
 # Your local work
 git checkout -b my-feature
-echo "my work" > myfile.txt && git add . && git commit -m "My commit"
+"my work" > myfile.txt
+git add .
+git commit -m "My commit"
 
 # Sync properly
 git fetch origin
