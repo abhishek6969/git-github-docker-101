@@ -519,240 +519,551 @@ git rebase -i HEAD~2
 
 ## 🌐 Part 6: Remote Workflows — The Professional Sync Pattern
 
-### The Problem with `git pull`
+### Why `git pull` is Messy
 
-```bash
-# What git pull actually does:
-git fetch origin    # Download new commits
-git merge origin/master  # Creates a MERGE COMMIT
+```powershell
+# What git pull actually does under the hood:
+git fetch origin             # Step 1: download commits from remote
+git merge origin/main        # Step 2: MERGE into your branch → creates a merge commit
 
-# After 10 syncs, your history looks like spaghetti
+# If you do this 10 times while teammates push, your history becomes spaghetti.
+# Every sync adds a useless merge commit.
 ```
 
-### The Professional Pattern: Fetch + Rebase
+### The Professional Pattern: Fetch → Inspect → Rebase
 
-```bash
-# Step 1: Download remote changes (SAFE — does NOT touch your code)
+```powershell
+# Step 1: Download remote changes SAFELY (does NOT touch your working files)
 git fetch origin
 
 # Step 2: See what the remote has that you don't
-git log HEAD..origin/master --oneline
+git log HEAD..origin/main --oneline
 
-# Step 3: Replay your work on top of the remote
-git rebase origin/master
+# Step 3: Replay your local commits ON TOP of the remote changes (no merge commit)
+git rebase origin/main
 
-# Or in one command:
-git pull --rebase origin master
+# OR do both in one command:
+git pull --rebase origin main
 ```
 
-> This keeps your local commits looking like they were written AFTER the latest remote code — making PRs cleaner and easier to review.
+> Rebasing keeps your feature commits looking like they were written *after* the latest remote code — making PRs much cleaner.
 
 ---
 
-### 🔬 SOP 6.1 — Simulate remote sync workflow
+### 🔬 SOP 6.1 — Real GitHub Remote Sync Simulation
+
+**The Scenario:** You have a local repo connected to a real GitHub repository. Someone (or you via the GitHub GUI) commits directly to GitHub. Your local branch is now behind. You need to sync cleanly.
+
+**Step 1: Create a local repo and connect it to GitHub**
 
 ```powershell
-# Setup: two "clones" of the same repo
-# Unix: git init remote-origin && cd remote-origin
-git init remote-origin
-cd remote-origin
-"v1" > shared.txt
+# Create local repo
+git init github-sync-lab
+cd github-sync-lab
+
+# Create an initial file and commit
+"# GitHub Sync Lab" > README.md
 git add .
-git commit -m "Initial"
-cd ..
+git commit -m "Initial local commit"
 
-# Unix: git clone remote-origin dev1 && cd dev1
-git clone remote-origin dev1
-cd dev1
+# Add your GitHub remote (replace URL with your real repo URL)
+git remote add origin https://github.com/your-username/github-sync-lab.git
 
-# Simulate teammate pushing to origin
-cd ../remote-origin
-Add-Content shared.txt "teammate work"   # Unix: echo "teammate work" >> shared.txt
-git add .
-git commit -m "Teammate commit"
-cd ../dev1
+# Verify the remote is set
+git remote -v
+# Output:
+# origin  https://github.com/your-username/github-sync-lab.git (fetch)
+# origin  https://github.com/your-username/github-sync-lab.git (push)
 
-# Your local work
+# Push local main to GitHub
+git push -u origin main
+# -u sets the upstream tracking — from now on git push/pull work without args
+```
+
+**Step 2: Simulate a commit made via the GitHub GUI**
+
+Go to your GitHub repo in the browser → click any file → click the pencil (Edit) icon → make a small change → click "Commit changes".
+
+> This creates a commit on the remote (`origin/main`) that your LOCAL repo does NOT have yet.
+
+**Step 3: Do local work at the same time (your feature)**
+
+```powershell
+# You're working locally while that GitHub commit was made
 git checkout -b my-feature
-"my work" > myfile.txt
+"my local feature work" > feature.txt
 git add .
-git commit -m "My commit"
+git commit -m "Add feature locally"
 
-# Sync properly
-git fetch origin
-git rebase origin/master
-
-# Result: linear history with your commit on top
+# Visualize — your branch is AHEAD of local main, but local main is BEHIND GitHub
 git log --oneline --graph --all
+```
+
+**Step 4: Fetch to see what GitHub has (SAFE — no files change)**
+
+```powershell
+git fetch origin
+
+# Now inspect what GitHub has that you don't
+git log HEAD..origin/main --oneline
+# Output: shows the commit made via GitHub GUI
+
+# See the full diff of what the remote added
+git diff HEAD origin/main
+```
+
+**Step 5: Rebase your local work on top of the remote commits**
+
+```powershell
+# Make sure you're on your feature branch
+git checkout my-feature
+
+# Replay your commits on top of the GitHub remote changes
+git rebase origin/main
+
+# After rebase — your feature commit sits neatly on top of the GUI commit
+git log --oneline --graph --all
+```
+
+**Step 6: Observe the result**
+
+```powershell
+# Check origin/main now matches your expectation
+git cat-file -p origin/main
+# Shows the commit made via GitHub GUI
+
+# Confirm your feature commit's parent is the GitHub commit
+git cat-file -p HEAD
+# parent line should point to the GitHub GUI commit hash
+```
+
+**Step 7: Push your feature and open a PR**
+
+```powershell
+git push origin my-feature
+# Then go to GitHub → you'll see a banner: "Compare & pull request"
 ```
 
 ---
 
 ## 🔧 Part 7: Stashing — Save Work Without Committing
 
-```bash
-# Mid-task, urgent switch needed
-git stash               # Save everything tracked+staged
+**The Scenario:** You're mid-task on a feature when an urgent bug report comes in. You can't commit half-finished work. You need to put your changes "in a drawer" and come back later.
 
-# List stashes
-git stash list          # stash@{0}: WIP on feature...
+### 🔬 SOP 7.1 — Basic stash and restore
 
-# Apply and remove
-git stash pop           # Restore + delete stash
+```powershell
+# Setup: create a repo with some committed history
+git init stash-lab
+cd stash-lab
+"v1 of app" > app.txt
+git add .
+git commit -m "Initial commit"
 
-# Apply but keep stash
+# Start working on a new feature (don't commit it)
+"new feature in progress" > feature.txt
+Add-Content app.txt "wip changes"    # Unix: echo "wip changes" >> app.txt
+git add feature.txt                  # Stage one file
+# Leave app.txt unstaged intentionally
+
+git status
+# Output:
+# Changes to be committed: feature.txt   (staged)
+# Changes not staged:      app.txt       (modified but not staged)
+```
+
+```powershell
+# Urgent! Stash ALL current work (staged + unstaged tracked files)
+git stash
+
+# Verify your working directory is now CLEAN
+git status
+# Output: nothing to commit, working tree clean
+
+# Your stash is saved:
+git stash list
+# Output: stash@{0}: WIP on main: abc1234 Initial commit
+
+# Now switch to fix the bug
+git checkout -b hotfix
+"bugfix applied" > bugfix.txt
+git add .
+git commit -m "Critical bugfix"
+git checkout main
+git merge hotfix
+```
+
+```powershell
+# Come back to your feature — restore the stash
+git stash pop
+# Restores your changes AND removes the stash entry
+
+git status
+# Your modified files are back exactly as you left them
+
+git stash list
+# Output: (empty) — stash was consumed by pop
+```
+
+### 🔬 SOP 7.2 — Advanced stash flags
+
+```powershell
+# stash apply — restore but KEEP the stash in the list
 git stash apply stash@{0}
+git stash list   # stash still exists
 
-# Stash including untracked files
-git stash -u
+# stash -u — also stash UNTRACKED files (new files not yet git add'd)
+"brand new file" > newfile.txt    # not added to git yet
+git stash -u                      # now newfile.txt is also stashed
 
-# Selective stash (interactive)
-git stash --patch
+# stash --keep-index — stash unstaged changes but LEAVE staged ones
+Add-Content app.txt "unstaged work"
+"staged work" > staged.txt
+git add staged.txt
+git stash --keep-index
+# Result: staged.txt stays in staging area, app.txt changes are stashed
 
-# Delete a specific stash
+# stash drop — delete a specific stash WITHOUT applying it
 git stash drop stash@{0}
 
-# Clear all stashes
+# stash clear — delete ALL stashes
 git stash clear
 ```
+
+> **Interview tip:** The key difference — `pop` = apply + delete stash. `apply` = restore but keep stash. `drop` = delete without applying.
 
 ---
 
 ## 🔍 Part 8: Debugging & Archaeology
 
-### `git bisect` — Binary Search for Bugs
+### 🔬 SOP 8.1 — `git bisect` (Binary Search for Bugs)
 
-```bash
+**The Scenario:** Your app is broken. It worked 3 weeks ago. There are 50 commits between then and now. `git bisect` finds the exact commit in ~6 steps instead of checking all 50.
+
+```powershell
+# Setup: create a repo simulating a bug being introduced mid-history
+git init bisect-lab
+cd bisect-lab
+
+"app v1 - works fine" > app.txt; git add .; git commit -m "v1 good"
+"app v2 - works fine" > app.txt; git add .; git commit -m "v2 good"
+"app v3 - BUG INTRODUCED HERE" > app.txt; git add .; git commit -m "v3 introduced bug"
+"app v4 - bug still present" > app.txt; git add .; git commit -m "v4 still broken"
+"app v5 - bug still present" > app.txt; git add .; git commit -m "v5 still broken"
+
+git log --oneline
+# abc001 v5 still broken       ← HEAD (current, broken)
+# abc002 v4 still broken
+# abc003 v3 introduced bug
+# abc004 v2 good
+# abc005 v1 good               ← known good
+```
+
+```powershell
+# Start bisect
 git bisect start
-git bisect bad          # Current state is broken
-git bisect good v1.0    # This tag was known good
 
-# Git checks out a middle commit. Test your app, then:
-git bisect good         # or: git bisect bad
+# Tell Git: current state is BAD
+git bisect bad
 
-# Repeat until Git identifies the exact commit
-git bisect reset        # Exit bisect mode
+# Tell Git: the oldest known-good commit (use its hash from git log)
+git bisect good <hash-of-v1-good-commit>
+
+# Git automatically checks out a commit halfway between good and bad
+# Test your app. Does the bug exist?
+
+# If the checked-out commit is BROKEN:
+git bisect bad
+
+# If the checked-out commit is FINE:
+git bisect good
+
+# Git halves the range again — repeat until Git prints:
+# "<hash> is the first bad commit"
+# commit abc003 ...
+# Author: ...
+# v3 introduced bug
+
+# Exit bisect mode and return to HEAD
+git bisect reset
 ```
 
-### `git blame` — Find Who Changed What
+> **Internal logic:** With 50 commits, bisect finds the bad one in just ⌈log₂(50)⌉ = **6 steps** instead of checking all 50.
 
-```bash
-git blame src/api.py
-# Shows: hash | author | date | line number | content
+---
 
-# Track code that was moved/copied from elsewhere
-git blame -C src/api.py
+### 🔬 SOP 8.2 — `git blame` (Find Who Changed What)
+
+```powershell
+# Setup: multi-author file history
+git init blame-lab
+cd blame-lab
+"line 1: original" > auth.py; git add .; git commit -m "Initial auth.py"
+"line 1: original`nline 2: added by dev" > auth.py; git add .; git commit -m "Add line 2"
+Add-Content auth.py "line 3: possible bug here"; git add .; git commit -m "Add line 3"
+
+# See who last modified each line
+git blame auth.py
+# Output format:
+# <hash> (<Author> <date> <line#>) line content
+# abc123 (Your Name 2024-01-15  1) line 1: original
+# def456 (Your Name 2024-01-16  2) line 2: added by dev
+# ghi789 (Your Name 2024-01-17  3) line 3: possible bug here
+
+# Jump to that commit to understand the full context
+git show ghi789
 ```
 
-### `git log` Archaeology
+```powershell
+# Track code that was MOVED or COPIED from another file
+git blame -C auth.py
+# The -C flag detects if the line was originally written in a different file
 
-```bash
-# Find when a specific string was introduced or removed ("Pickaxe")
-git log -S "password_reset" --oneline
+# Blame only specific line range (e.g., lines 10-20)
+git blame -L 10,20 auth.py
+```
 
-# Find all commits touching a specific file
-git log --follow -- src/auth.py
+---
 
-# Show commits between two dates
-git log --since="2024-01-01" --until="2024-06-01" --oneline
+### 🔬 SOP 8.3 — `git log` Archaeology
 
-# Show full diff for each commit
-git log -p --follow -- src/auth.py
+```powershell
+# Setup: create a repo with a "secret" being committed and removed
+git init log-lab
+cd log-lab
+"normal content" > config.py; git add .; git commit -m "Initial"
+Add-Content config.py "API_KEY=secret123"; git add .; git commit -m "Add API key (oops)"
+"normal content" > config.py; git add .; git commit -m "Remove API key"
+"more features" > feature.py; git add .; git commit -m "Add feature"
+
+# --- PICKAXE: Find when a string was added or removed ---
+git log -S "API_KEY" --oneline
+# Output: shows ONLY the 2 commits that added or removed "API_KEY"
+# This is the most powerful debugging tool for finding when things changed
+
+# --- Filter by author ---
+git log --author="Your Name" --oneline
+
+# --- Filter by date ---
+git log --since="2024-01-01" --until="2024-12-31" --oneline
+
+# --- Hide merge commits ---
+git log --no-merges --oneline
+
+# --- Full diff of every commit touching a file ---
+git log -p -- config.py
+
+# --- Trace file renames (follow) ---
+git log --follow -- config.py
 ```
 
 ---
 
 ## 🏷️ Part 9: Tags — Marking Releases
 
-```bash
-# Lightweight tag (just a pointer)
-git tag v1.0
+### 🔬 SOP 9.1 — Create and inspect tags
 
-# Annotated tag (full object with metadata — use for releases)
-git tag -a v1.0 -m "Version 1.0 release"
+```powershell
+# Setup
+git init tag-lab
+cd tag-lab
+"v1 code" > app.txt; git add .; git commit -m "Version 1.0 release"
+"v2 code" > app.txt; git add .; git commit -m "Version 2.0 release"
 
-# Tag a specific past commit
-git tag -a v0.9 <commit-hash> -m "Hotfix release"
+# --- LIGHTWEIGHT TAG: just a pointer (no metadata stored) ---
+git tag v1.0 HEAD~1      # tag the previous commit (v1.0)
 
-# Push tags to remote
-git push origin v1.0         # Single tag
-git push origin --tags       # All tags
+# Inspect: lightweight tag points DIRECTLY to the commit
+git cat-file -t v1.0     # Output: commit  ← points straight to commit
+git cat-file -p v1.0     # Shows the commit object directly
 
-# List tags
+# --- ANNOTATED TAG: full object with metadata ---
+git tag -a v2.0 -m "Version 2.0 - major release"
+
+# Inspect: annotated tag is its OWN object (type: tag)
+git cat-file -t v2.0     # Output: tag  ← its own object!
+git cat-file -p v2.0
+# Output:
+# object <commit-hash>   ← points to the commit
+# type commit
+# tag v2.0
+# tagger Your Name <you@email.com> ...
+#
+# Version 2.0 - major release
+```
+
+> **Interview insight:** This is the key difference. A lightweight tag is just a ref file (like a branch). An annotated tag is a real object in the database with its own hash, metadata, and can be GPG-signed.
+
+```powershell
+# Tag a specific PAST commit (useful for retroactively tagging a release)
+git tag -a v0.9 <commit-hash> -m "Retroactive pre-release tag"
+
+# List all tags
 git tag -l
-git tag -l "v1.*"            # Wildcard
+git tag -l "v1.*"          # Wildcard filter
 
 # Delete a tag
-git tag -d v1.0              # Local
+git tag -d v1.0            # Local only
 git push origin --delete v1.0  # Remote
+
+# Push tags to remote
+git push origin v2.0       # Single tag
+git push origin --tags     # All local tags
 ```
 
 ---
 
 ## 🛡️ Part 10: Safety Net — Reflog & Recovery
 
-```bash
-# See every HEAD movement (local only, ~30 day retention)
-git reflog
+**The Scenario:** You ran `git reset --hard`, deleted a branch, or rebased badly. Your work seems lost. `git reflog` is your rescue parachute.
 
-# Output format:
-# abc123 HEAD@{0}: commit: My latest commit
-# def456 HEAD@{1}: checkout: moving to main
-# ghi789 HEAD@{2}: reset: moving to HEAD~1
+### 🔬 SOP 10.1 — Recover from a hard reset
 
-# Recover a deleted branch
-git branch recovered-branch <hash-from-reflog>
+```powershell
+# Setup: create some commits, then "accidentally" hard reset
+git init reflog-lab
+cd reflog-lab
+"v1" > file.txt; git add .; git commit -m "Commit 1"
+"v2" > file.txt; git add .; git commit -m "Commit 2"
+"v3" > file.txt; git add .; git commit -m "Commit 3"
 
-# Recover after a hard reset
-git reset --hard <hash-from-reflog>
+git log --oneline
+# abc003 Commit 3  ← HEAD
+# abc002 Commit 2
+# abc001 Commit 1
+
+# Simulate an "accidental" hard reset
+git reset --hard HEAD~2
+git log --oneline
+# abc001 Commit 1  ← Commits 2 and 3 appear GONE!
+Get-Content file.txt
+# v1  ← working directory reset to v1
 ```
+
+```powershell
+# RECOVERY: reflog records every HEAD movement
+git reflog
+# Output:
+# abc001 HEAD@{0}: reset: moving to HEAD~2
+# abc003 HEAD@{1}: commit: Commit 3         ← the "lost" commit
+# abc002 HEAD@{2}: commit: Commit 2
+# abc001 HEAD@{3}: commit: Commit 1
+
+# Restore to the "lost" Commit 3
+git reset --hard abc003   # use the actual hash from your reflog
+
+git log --oneline
+# abc003 Commit 3  ← fully restored
+Get-Content file.txt
+# v3  ← file content restored
+```
+
+### 🔬 SOP 10.2 — Recover a deleted branch
+
+```powershell
+# Create a branch, commit to it, then delete it
+git checkout -b feature-lost
+"important work" > important.txt; git add .; git commit -m "Important feature"
+git checkout main
+git branch -D feature-lost    # Force delete — branch gone!
+
+# Recovery via reflog
+git reflog
+# Output includes:
+# <hash> HEAD@{1}: commit: Important feature  ← this is our lost commit
+
+# Restore the branch
+git checkout -b feature-restored <hash>
+
+git log --oneline
+# <hash> Important feature  ← branch restored with all commits
+```
+
+> **Key insight:** Deleting a branch only removes the pointer file in `.git/refs/heads/`. The actual commit objects remain in `.git/objects` until `git gc` runs (~30 days by default).
 
 ---
 
 ## 📋 Part 11: Essential Config & Aliases
 
-```bash
-# Identity (mandatory)
+### 🔬 SOP 11.1 — Setup and verify config
+
+```powershell
+# --- Identity (MANDATORY before first commit) ---
 git config --global user.name "Your Name"
 git config --global user.email "you@email.com"
 
-# Default branch name
+# --- Set VS Code as default editor for commit messages ---
+git config --global core.editor "code --wait"
+# Unix equivalent: same command
+
+# --- Default branch name for new repos ---
 git config --global init.defaultBranch main
 
-# Editor
-git config --global core.editor "code --wait"
-
-# Enable rerere (auto-reuse conflict resolutions)
+# --- Auto-reuse conflict resolutions (rerere) ---
 git config --global rerere.enabled true
 
-# Useful aliases
-git config --global alias.lg "log --oneline --graph --all --decorate"
-git config --global alias.st "status -s"
-git config --global alias.undo "reset --soft HEAD~1"
-git config --global alias.unstage "restore --staged"
-
-# View all config
+# --- View all config and WHERE each setting comes from ---
 git config --list --show-origin
+# Output shows: system / global / local config levels
+
+# --- Per-repo override (e.g., work email for one repo) ---
+# Inside the repo folder:
+git config user.email "work@company.com"
+git config --list --local   # Shows only this repo's overrides
 ```
+
+### 🔬 SOP 11.2 — Useful aliases
+
+```powershell
+# Pretty graph log
+git config --global alias.lg "log --oneline --graph --all --decorate"
+git lg    # Test it
+
+# Short status
+git config --global alias.st "status -s"
+git st
+
+# Undo last commit but keep changes staged
+git config --global alias.undo "reset --soft HEAD~1"
+git undo
+
+# Unstage a file (safer than reset)
+git config --global alias.unstage "restore --staged"
+git unstage <file>
+
+# Show last commit
+git config --global alias.last "log -1 HEAD --stat"
+git last
+```
+
+> Aliases are stored in `C:\Users\<you>\.gitconfig` under the `[alias]` section.
 
 ---
 
 ## 🎯 Quick Interview Cheatsheet
 
-| Scenario | Command |
+| Scenario | PowerShell Command |
 | --- | --- |
 | Undo last commit, keep staged | `git reset --soft HEAD~1` |
 | Undo last commit, keep in working dir | `git reset HEAD~1` |
 | Discard ALL local changes | `git reset --hard HEAD` |
 | Safe undo (shared branch) | `git revert HEAD` |
 | Save work without committing | `git stash` |
-| Recover deleted branch | `git reflog` → `git branch name <hash>` |
-| Find bug-introducing commit | `git bisect start/good/bad` |
+| Save including untracked files | `git stash -u` |
+| Restore stash and delete it | `git stash pop` |
+| Recover deleted branch / hard reset | `git reflog` → `git checkout -b name <hash>` |
+| Find bug-introducing commit | `git bisect start` → `bad` / `good` |
 | Find who changed a line | `git blame <file>` |
-| Find when string was added | `git log -S "string"` |
+| Find when string was added/removed | `git log -S "string"` |
 | Sync without merge commit | `git pull --rebase` |
 | Combine last 3 commits | `git rebase -i HEAD~3` |
 | Apply single commit from another branch | `git cherry-pick <hash>` |
 | Show file at specific commit | `git show HEAD~2:path/to/file` |
 | List all remote branches | `git branch -r` |
 | Delete remote branch | `git push origin --delete branch-name` |
+| See all HEAD movements | `git reflog` |
+| Inspect any Git object | `git cat-file -p <hash>` |
+| See what type an object is | `git cat-file -t <hash>` |
+| Inspect staging area raw | `git ls-files --stage` |
+
+
