@@ -1,4 +1,4 @@
-﻿# 🎯 Git & GitHub Interview Questions & Scenarios
+# 🎯 Git & GitHub Interview Questions & Scenarios
 
 ---
 
@@ -2128,5 +2128,231 @@ git shortlog v1.0..HEAD -sn
 ```
 
 > **CI/CD use:** `git shortlog -sn` auto-generates contributor stats for release notes.
+
+---
+
+## 🆕 Additional DevOps & Team Questions
+
+### Q108: What is the difference between a long-lived and short-lived branch?
+
+**Answer:**
+
+- **Long-lived branches** persist for the life of the project: `main`, `develop`, `release/*`. They represent stable states and accumulate many merges over time.
+- **Short-lived branches** are created for a single task and deleted after merging: `feature/login`, `fix/typo`, `hotfix/crash`. They should live days, not weeks.
+
+> **Best practice:** Keep feature branches short-lived (< 2 days ideally). The longer a branch lives, the more it diverges from `main` and the worse the merge conflict will be. This is why Trunk-Based Development enforces daily commits directly to `main`.
+
+### Q109: How do you rename a branch locally and on the remote?
+
+**Answer:**
+
+```bash
+# 1. Rename locally
+git branch -m old-name new-name
+
+# 2. Push the new name to remote
+git push origin new-name
+
+# 3. Delete the old remote branch
+git push origin --delete old-name
+
+# 4. Update tracking reference for the current branch
+git branch --set-upstream-to=origin/new-name new-name
+```
+
+> If you renamed the branch you're currently on, skip step 4 — the `-m` flag handles the local rename automatically.
+
+### Q110: How do you safely delete a remote branch?
+
+**Answer:**
+
+```bash
+# Delete the remote branch
+git push origin --delete feature/login
+
+# Prune stale remote-tracking refs locally
+git fetch --prune
+# or
+git remote prune origin
+```
+
+> Always confirm the branch is merged first: `git branch --merged main | grep feature/login`. Without `--prune`, your local `git branch -r` will still show the deleted branch as a ghost reference.
+
+### Q111: What is the difference between `git checkout`, `git switch`, and `git restore`?
+
+**Answer:** Git 2.23 split `git checkout`'s two responsibilities into dedicated commands:
+
+| Command | Purpose | Replaces |
+| --- | --- | --- |
+| `git switch <branch>` | Change branches | `git checkout <branch>` |
+| `git switch -c <branch>` | Create + switch | `git checkout -b <branch>` |
+| `git restore <file>` | Discard working dir changes | `git checkout -- <file>` |
+| `git restore --staged <file>` | Unstage a file | `git reset HEAD <file>` |
+| `git checkout` | Still works — does both | (legacy, ambiguous) |
+
+> **Why the split?** `git checkout` was doing two unrelated things — switching branches (pointer operation) and restoring files (file operation) — causing confusion and accidental data loss. The new commands are explicit and safer.
+
+### Q112: What happens when two developers push to the same branch simultaneously?
+
+**Answer:** Git uses a **non-fast-forward rejection** as its safety mechanism:
+
+1. Dev A pushes first — succeeds.
+2. Dev B tries to push — **rejected** with: `rejected — non-fast-forward`.
+3. Dev B must `git pull --rebase` (or `git pull`) to integrate Dev A's commits first, resolve any conflicts, then push.
+
+```bash
+# Dev B's recovery flow:
+git pull --rebase origin main   # rebase local commits on top of remote
+# resolve any conflicts if they arise
+git push origin main            # now succeeds
+```
+
+> **Root cause:** Git only allows a push if the remote tip is an ancestor of what you're pushing. If someone else advanced the tip, yours is no longer on top of it. This is a feature, not a bug — it prevents silent overwrites.
+
+### Q113: How is Git used in CI/CD pipelines?
+
+**Answer:** Git is the **trigger and source of truth** for every CI/CD pipeline:
+
+| Event | CI/CD Action |
+| --- | --- |
+| Push to feature branch | Run unit tests, linting |
+| PR opened/updated | Run full test suite, security scan, code coverage |
+| Merge to `main` | Build Docker image, deploy to staging |
+| Tag pushed (`v1.2.0`) | Deploy to production |
+
+**Key Git commands used in pipelines:**
+```bash
+git clone --depth 1 <repo>       # Shallow clone for speed
+git checkout $BRANCH_NAME        # Check out the triggering branch
+git describe --tags --always     # Generate version string for build tagging
+git log -1 --format="%H"         # Get commit SHA for image tags / traceability
+git diff origin/main...HEAD      # Find changed files for selective test runs
+```
+
+> **Best practice:** Always use `--depth 1` in CI — you don't need full history to run tests. Tag releases with annotated tags (`git tag -a v1.0`) so `git describe` generates clean version strings.
+
+### Q114: How do you manage secrets in Git?
+
+**Answer:** The #1 rule: **never commit secrets**. Layered strategy:
+
+**Prevention (before commit):**
+```bash
+# .gitignore — exclude secret files
+.env
+*.pem
+secrets.json
+
+# Pre-commit hook — block commits with secrets
+# Tools: git-secrets, detect-secrets, gitleaks
+```
+
+**Detection (after accidental commit):**
+```bash
+# Use git-filter-repo to scrub a file from ALL history
+git filter-repo --path secrets.env --invert-paths
+git push --force-with-lease
+
+# GitHub Advanced Security / GitGuardian scan automatically
+```
+
+**Runtime secrets management:**
+- **Development:** `.env` files in `.gitignore`, loaded via `python-dotenv` / `dotenv`
+- **CI/CD:** GitHub Secrets / Azure Key Vault / AWS Secrets Manager — injected as environment variables at runtime, never stored in code
+- **Production:** Kubernetes Secrets, HashiCorp Vault
+
+> **If a secret is already pushed:** Rotate it immediately — assume it's compromised. Then scrub history with `git filter-repo`.
+
+### Q115: How do you roll back production code using Git?
+
+**Answer:** Three strategies depending on context:
+
+**1. Revert (safest — preserves history):**
+```bash
+git revert <bad-commit-hash>    # Creates a new commit that undoes it
+git push origin main
+```
+
+**2. Reset + force push (destructive — only if no one else has pulled):**
+```bash
+git reset --hard <last-good-hash>
+git push --force-with-lease origin main
+```
+
+**3. Roll back via tag (cleanest for releases):**
+```bash
+git checkout v1.4.2             # Check out the last good release tag
+git checkout -b hotfix/rollback # Branch from it
+# Deploy this branch to production
+```
+
+> **In DevOps pipelines:** The preferred approach is **redeploy the previous artifact** (Docker image tagged `v1.4.2`) rather than Git operations — faster and safer than history manipulation on a live codebase.
+
+### Q116: How do you manage multiple environments (dev/staging/prod) using Git?
+
+**Answer:** Two common patterns:
+
+**1. Branch-per-environment:**
+```
+feature/* → develop → staging → main (prod)
+```
+Each merge triggers a deployment to that environment. Clear and auditable.
+
+**2. Tag-per-release + environment config external:**
+```bash
+git tag -a v1.5.0 -m "Release 1.5.0"
+git push origin v1.5.0
+# Pipeline deploys v1.5.0 to staging, promotes to prod after approval
+```
+Environment-specific config (DB URLs, API keys) lives in the CI/CD platform or Kubernetes, **not in Git**.
+
+> **Anti-pattern:** Do not have `production`, `staging` as permanent long-lived branches — it leads to "forgotten" merges and environment drift. Use tags + external config instead.
+
+### Q117: How do you reduce merge conflicts in a large team?
+
+**Answer:** Conflicts are symptoms of poor coordination. Fix the root cause:
+
+| Practice | How it helps |
+| --- | --- |
+| **Short-lived branches** | Less divergence time = smaller diffs |
+| **Frequent rebases** | `git pull --rebase` daily keeps your branch current |
+| **Small, focused PRs** | Fewer files touched = fewer collision opportunities |
+| **Module/file ownership** | Define who owns which files (CODEOWNERS) |
+| **Feature flags** | Merge incomplete features early via flags, not late via big PRs |
+| **Shared formatting** | Prettier/Black eliminates whitespace conflicts |
+| **`git rerere`** | Caches conflict resolutions — same conflict auto-resolved next time |
+| **Trunk-Based Development** | Eliminates long-lived branches entirely |
+
+### Q118: Describe a common Git production issue and how to fix it.
+
+**Answer — Scenario: Accidental push of a breaking commit to `main`:**
+
+```bash
+# Step 1: Identify the bad commit
+git log --oneline -10
+# a1b2c3d Breaking change (HEAD)
+# d4e5f6g Last good commit
+
+# Step 2: Revert it immediately (safe — preserves history)
+git revert a1b2c3d
+git push origin main
+# CI/CD auto-deploys the revert — production restored
+
+# Step 3: Understand the root cause
+git show a1b2c3d     # Inspect what changed
+git blame <file>     # Who changed what line
+
+# Step 4: Fix properly on a branch
+git checkout -b fix/breaking-change
+# ... fix the code ...
+git push origin fix/breaking-change
+# Open PR, review, merge properly
+
+# Step 5: Prevent recurrence
+# Add branch protection: require PR reviews, status checks
+# Add pre-push hook or CI gate that catches the issue
+```
+
+> **Key interview insight:** Always prefer `git revert` over `git reset --hard` on shared branches. Revert creates a traceable paper trail; reset destroys evidence and breaks teammates' histories.
+
 
 ---
